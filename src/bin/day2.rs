@@ -46,6 +46,7 @@ fn main() {
 
 // My failed attempt at solving part 2 by considering all the cases
 #[cfg(feature = "part2")]
+#[allow(dead_code)]
 fn failed() {
     let input = fs::read_to_string("input/day2").expect("Read input file");
 
