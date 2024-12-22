@@ -26,8 +26,9 @@ fn main() {
 
     // Check if update is in correct order and sum up middle number
     let mut sum = 0;
+    let mut incorrect_sum = 0;
     while let Some(line) = line_iter.next() {
-        let update: Vec<i32> = line.split(",").map(|x| x.parse::<i32>().unwrap()).collect();
+        let mut update: Vec<i32> = line.split(",").map(|x| x.parse::<i32>().unwrap()).collect();
         let mut is_correct_order = true;
         let length = update.len();
         for i in 0..length {
@@ -36,6 +37,8 @@ fn main() {
                     for j in 0..i {
                         if must_come_before.contains(&update[j]) {
                             is_correct_order = false;
+                            let elem = update.remove(i);
+                            update.insert(j, elem);
                             break;
                         }
                     }
@@ -47,8 +50,11 @@ fn main() {
         if is_correct_order {
             sum += update[length / 2];
             // dbg!(update);
+        } else {
+            incorrect_sum += update[length / 2];
         }
     }
 
     println!("Sum of middle pages of correctly ordered update: {sum}");
+    println!("Sum of middle pages of incorrectly ordered update: {incorrect_sum}");
 }
