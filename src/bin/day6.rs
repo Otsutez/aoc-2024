@@ -1,4 +1,4 @@
-use std::{fs, str::FromStr};
+use std::{collections::HashSet, fs, str::FromStr};
 
 #[derive(Debug)]
 enum Tile {
@@ -8,14 +8,15 @@ enum Tile {
 }
 
 #[derive(Debug)]
-struct Player {
+struct Guard {
     row: isize,
     col: isize,
     row_inc: isize,
     col_inc: isize,
+    initial_position: (isize, isize),
 }
 
-impl Player {
+impl Guard {
     fn turn(&mut self) {
         let mut row_inc = self.row_inc;
         let mut col_inc = self.col_inc;
@@ -42,46 +43,83 @@ impl Player {
         self.row += self.row_inc;
         self.col += self.col_inc;
     }
+
+    fn reset_position(&mut self) {
+        self.row = self.initial_position.0;
+        self.col = self.initial_position.1;
+        self.row_inc = -1;
+        self.col_inc = 0;
+    }
 }
 
 #[derive(Debug)]
 struct Map {
     map: Vec<Vec<Tile>>,
-    player: Player,
+    guard: Guard,
     length: usize,
     width: usize,
+    visited: HashSet<(usize, usize)>,
 }
 
 impl Map {
-    fn simulate(&mut self) {
-        while self.player_in_map() {
-            if self.player_can_move_forward() {
+    fn simulate_once(&mut self) {
+        while self.guard_in_map() {
+            if self.guard_can_move_forward() {
                 self.mark_visited();
-                self.player.forward();
+                self.guard.forward();
             } else {
-                self.player.turn();
+                self.guard.turn();
             }
         }
     }
 
-    fn count_visited(&self) -> usize {
-        let mut count = 0;
-        for row in self.map.iter() {
-            for tile in row {
-                match tile {
-                    Tile::Visited => {
-                        count += 1;
-                    }
-                    _ => continue,
+    fn simulate_loop(&mut self) -> bool {
+        let mut visited_turn = HashSet::new();
+        self.guard.reset_position();
+        while self.guard_in_map() {
+            if self.guard_can_move_forward() {
+                self.guard.forward();
+            } else {
+                self.guard.turn();
+                if visited_turn.insert((
+                    self.guard.row,
+                    self.guard.col,
+                    self.guard.row_inc,
+                    self.guard.col_inc,
+                )) == false
+                {
+                    // Player take this turn before, therefore in loop
+                    return true;
                 }
             }
+        }
+        false
+    }
+
+    fn count_possible_obstruction(&mut self) -> usize {
+        let mut count = 0;
+        for (row, col) in self.visited.clone().iter() {
+            // Add obstacle
+            self.map[*row][*col] = Tile::Obstruction;
+            self.guard.reset_position();
+            if self.simulate_loop() {
+                count += 1;
+            }
+            // Remove obstacle
+            self.map[*row][*col] = Tile::Empty;
         }
 
         count
     }
 
+    fn count_visited(&self) -> usize {
+        self.visited.len()
+    }
+
     fn mark_visited(&mut self) {
-        self.map[self.player.row as usize][self.player.col as usize] = Tile::Visited;
+        let row = self.guard.row as usize;
+        let col = self.guard.col as usize;
+        self.visited.insert((row, col));
     }
 
     fn in_map(&self, row: isize, col: isize) -> bool {
@@ -93,23 +131,37 @@ impl Map {
         false
     }
 
-    fn player_in_map(&self) -> bool {
-        self.in_map(self.player.row, self.player.col)
+    fn guard_in_map(&self) -> bool {
+        self.in_map(self.guard.row, self.guard.col)
     }
 
-    fn player_can_move_forward(&self) -> bool {
-        let next_row = self.player.row + self.player.row_inc;
-        let next_col = self.player.col + self.player.col_inc;
+    fn guard_can_move_forward(&self) -> bool {
+        let next_row = self.guard.row + self.guard.row_inc;
+        let next_col = self.guard.col + self.guard.col_inc;
 
         if self.in_map(next_row, next_col) {
             match self.map[next_row as usize][next_col as usize] {
-                Tile::Empty => true,
                 Tile::Obstruction => false,
-                Tile::Visited => true,
+                _ => true,
             }
         } else {
             true
         }
+    }
+
+    fn print_visited_map(&self) {
+        println!("");
+        for row in self.map.iter() {
+            for tile in row {
+                match tile {
+                    Tile::Empty => print!("."),
+                    Tile::Obstruction => print!("#"),
+                    Tile::Visited => print!("X"),
+                }
+            }
+            println!("");
+        }
+        println!("");
     }
 }
 
@@ -119,11 +171,12 @@ impl FromStr for Map {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut row = 0;
         let mut col = 0;
-        let mut player = Player {
+        let mut guard = Guard {
             row_inc: -1,
             col_inc: 0,
             row: 0,
             col: 0,
+            initial_position: (0, 0),
         };
 
         let map = s
@@ -135,9 +188,10 @@ impl FromStr for Map {
                         let tile = match c {
                             '#' => Tile::Obstruction,
                             '^' => {
-                                player.row = row;
-                                player.col = col;
-                                Tile::Visited
+                                guard.row = row;
+                                guard.col = col;
+                                guard.initial_position = (row, col);
+                                Tile::Empty
                             }
                             _ => Tile::Empty,
                         };
@@ -155,10 +209,11 @@ impl FromStr for Map {
         let width = map[0].len();
 
         Ok(Map {
-            player,
+            guard,
             map,
             length,
             width,
+            visited: HashSet::new(),
         })
     }
 }
@@ -167,7 +222,13 @@ impl FromStr for Map {
 fn main() {
     let content = fs::read_to_string("input/day6").expect("Read input file");
     let mut map = Map::from_str(&content).expect("Parsing map");
-    map.simulate();
+
+    // Part 1
+    map.simulate_once();
     let count = map.count_visited();
     println!("Number of position visited: {count}");
+
+    // Part 2
+    let count = map.count_possible_obstruction();
+    println!("Number of possible obstructions: {count}");
 }
