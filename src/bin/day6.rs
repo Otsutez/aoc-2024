@@ -218,7 +218,6 @@ impl FromStr for Map {
     }
 }
 
-#[cfg(feature = "part1")]
 fn main() {
     let content = fs::read_to_string("input/day6").expect("Read input file");
     let mut map = Map::from_str(&content).expect("Parsing map");
