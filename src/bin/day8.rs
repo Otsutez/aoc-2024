@@ -57,6 +57,35 @@ impl Map {
         antinodes.len()
     }
 
+    fn count_antinodes_2(&mut self) -> usize {
+        let mut antinodes = HashSet::new();
+        self.antennas.clone().into_values().for_each(|v| {
+            v.into_iter().tuple_combinations().for_each(|(x, y)| {
+                antinodes.insert((x.0, x.1));
+                antinodes.insert((y.0, y.1));
+                let dy = x.0 - y.0;
+                let dx = x.1 - y.1;
+                let mut row = x.0 + dy;
+                let mut col = x.1 + dx;
+                while self.in_map(row, col) {
+                    antinodes.insert((row, col));
+                    self.map[row as usize][col as usize] = Tile::Antinode;
+                    row += dy;
+                    col += dx;
+                }
+                row = y.0 - dy;
+                col = y.1 - dx;
+                while self.in_map(row, col) {
+                    antinodes.insert((row, col));
+                    self.map[row as usize][col as usize] = Tile::Antinode;
+                    row -= dy;
+                    col -= dx;
+                }
+            })
+        });
+        antinodes.len()
+    }
+
     fn in_map(&self, row: isize, col: isize) -> bool {
         if (0..self.height).contains(&row) && (0..self.width).contains(&col) {
             true
@@ -66,7 +95,6 @@ impl Map {
     }
 }
 
-#[cfg(feature = "part1")]
 fn main() {
     let content = fs::read_to_string("input/day8").expect("Read input file");
     let mut map = parse_map(content);
@@ -74,7 +102,11 @@ fn main() {
     let count = map.count_antinodes();
     println!();
     map.print_map();
-    println!("Number of antinodes: {count}");
+    println!("Number of antinodes part 1: {count}");
+    let count = map.count_antinodes_2();
+    println!();
+    map.print_map();
+    println!("Number of antinodes part 2: {count}");
 }
 
 fn parse_map(content: String) -> Map {
